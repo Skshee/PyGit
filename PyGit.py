@@ -24,11 +24,23 @@ def hash_object(data, obj_type, write=True):
 
     sha1 = hashlib.sha1(full_data).hexdigest()  # Using the imported hashlib library's for sha1 encoding and storing it in hexadecimal
     if write:
-        path = os.path.join('.git', 'objects', sha1[:2], sha1[2:])  # Converts raw SHA-1 to actual filepath
+        path = os.path.join('.git', 'objects', sha1[:2], sha1[2:])  # Converts raw SHA-1 to actual filepath (One can also use pathlib library instead of os.path)
         os.makedirs(os.path.dirname(path), exist_ok=True) # Ensures that the directory exists
         with open(path, 'wb') as f:
             f.write(zlib.compress(full_data))   # Stores objects in zlib compressed format
     return sha1
+
+def commit_tree(tree_sha, message, parent=None):
+    commit = f'tree {tree_sha}\n'
+    if parent:
+        commit += f'parent {parent}\n'
+    commit += f'author XYZ <XYZ@example.com> {int(time.time())} +0000\n' # Author's details with UNIX timestam
+    commit += f'committer XYZ <XYZ@example.com> {int(time.time())} +0000\n\n' # Commiter's details with UNIX timestam
+    commit += f'{message}\n' # Commit message entered by user
+    return hash_object(commit.encode(), 'commit')
+
+
+
 
 
 

@@ -33,6 +33,22 @@ As you can see the first 2 hexadecimal characters i.e "e6" is our subdirectory a
 
 ## <u> Commit_Tree() Function </u> :
 
+### ✅ Purpose:
+This builds and saves a commit object that refers to a tree and (optionally) a parent commit.
+
+<hr>
+
+A commit points to a tree and stores:
+
+- Tree SHA1
+
+- Parent SHA1 (For all commits except the very first)
+
+- Author and Committer info
+
+- Message
+
+Git stores author and committer info with UNIX timestamps and adds the user-written commit message
 
 
 
