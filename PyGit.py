@@ -1,22 +1,31 @@
-import argparse, collections, difflib, enum, hashlib, operator, os, stat
-import struct, sys, time, urllib.request, zlib
+import os
+import json
+import hashlib
+import zlib
 
+GIT_DIR = ".git"
+OBJECTS_DIR = os.path.join(GIT_DIR, "objects")
+INDEX_FILE = os.path.join(GIT_DIR, "index.json")
+HEAD_FILE = os.path.join(GIT_DIR, "HEAD")
+MASTER_REF = os.path.join(GIT_DIR, "refs", "heads", "master")
 
-IndexEntry = collections.namedtuple('IndexEntry', [
-    'ctime_s', 'ctime_n', 'mtime_s', 'mtime_n', 'dev', 'ino', 'mode', 'uid',
-    'gid', 'size', 'sha1', 'flags', 'path',
-])
+def init_repo():
+    os.makedirs(OBJECTS_DIR, exist_ok=True)
+    os.makedirs(os.path.dirname(MASTER_REF), exist_ok=True)
 
+    # Create an empty JSON index
+    with open(INDEX_FILE, "w") as f:
+        json.dump({}, f)
 
-class ObjectType(enum.Enum):
-    commit = 1
-    tree = 2
-    blob = 3
+    # Set HEAD to point to master
+    with open(HEAD_FILE, "w") as f:
+        f.write("ref: refs/heads/master\n")
 
-def read_file(path):
-    """Read contents of file at given path as bytes."""
-    with open(path, 'rb') as f: 
-        return f.read()
+    # Empty master ref (no commits yet)
+    with open(MASTER_REF, "w") as f:
+        f.write("")
+
+    print("Initialized empty Git repository in .git/")
 
 def hash_object(data, obj_type, write=True):
     header = f'{obj_type} {len(data)}'.encode()  # Every git object has a header like 'blob 23', 'commit 45' etc
@@ -30,17 +39,39 @@ def hash_object(data, obj_type, write=True):
             f.write(zlib.compress(full_data))   # Stores objects in zlib compressed format
     return sha1
 
-def commit_tree(tree_sha, message, parent=None):
-    commit = f'tree {tree_sha}\n'
-    if parent:
-        commit += f'parent {parent}\n'
-    commit += f'author XYZ <XYZ@example.com> {int(time.time())} +0000\n' # Author's details with UNIX timestam
-    commit += f'committer XYZ <XYZ@example.com> {int(time.time())} +0000\n\n' # Commiter's details with UNIX timestam
-    commit += f'{message}\n' # Commit message entered by user
-    return hash_object(commit.encode(), 'commit')
+def read_index():
+    if not os.path.exists(INDEX_FILE):
+        return {}  # empty index
+    with open(INDEX_FILE, "r") as f:
+        return json.load(f)
+
+def write_index(index):
+    with open(INDEX_FILE, "w") as f:
+        json.dump(index, f, indent=2)
 
 
+def add_command(file_paths):
+    # reads the .git/index.json file - Stores currently committed data
+    index = read_index() 
 
+    # Process each file and check if it's valid
+    for path in file_paths:
+        if not os.path.isfile(path):
+            print(f"warning: {path} is not a file, skipping")
+            continue
 
+        with open(path, "rb") as f:
+            data = f.read()
 
+        # Create a Git-style object and store it
+        oid = hash_object(data, "blob")  
 
+        # Stage the file in an index
+        index[path] = {
+            "oid": oid,
+            "mode": "100644",  # 100-regular file, 644 - WRR (WRITE,READ,READ) permissions
+        }
+
+        print(f"added: {path}")
+
+    write_index(index)

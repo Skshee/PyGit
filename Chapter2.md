@@ -12,7 +12,8 @@ NOTE : **Blobs and trees that have the same data will have the same SHA-1 hash v
 
 ## <u> Hash_Object() Function</u> :
 
-### ✅ Purpose:
+### 🎯 Goal:
+Implement the logic for storing files as blobs in your .pygit/objects directory and return their SHA-1 hash (just like Git does).:
 This function creates a Git object (blob, tree, or commit), stores it in `.git/objects/`, and returns its SHA-1 hash.
 
 <hr>

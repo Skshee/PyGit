@@ -1,19 +1,4 @@
-# Chapter 1 - Repository Initialization (Implementing git init)
-
-### <u>Imported Modules</u> :-
-File and directory operations - `os, stat`
-
-Data encoding/decoding and compression -  `zlib, struct`
-
-Hashing - `hashlib`
-
-Enum representation - `enum`
-
-CLI parsing - `argparse`
-
-### <u>IndexEntry Tuple</u> :
-
-Git uses an index to track staged changes such creation time, modification time etc. The tuple IndexEntry matches the structure of entries in the Git Index file
+# Chapter 1 - Repository Initialization (git init)
 
 ### <u>Objects in Git</u>
 
@@ -24,4 +9,15 @@ Git stores data as objects—each having a type: commit, tree, or blob.
 `Tree` - A directory's structure
 
 `commit` - Current Status of your project at a specific point in time
+
+What We Need to Create:
+- `.git/` – root of all Git data
+
+- `.git/objects/` – where blob and commit files will be stored
+
+- `.git/index.json` – The Staging area in JSON
+
+- `.git/HEAD` – pointer to the current branch (refs/heads/master)
+
+- `.git/refs/heads/master` – will contain the latest commit SHA-1
 
