@@ -15,9 +15,13 @@ Implement the logic for:
 2. Store the file path and hash in `index.json`.
 3. That JSON file becomes our index.
 
+<<<<<<< HEAD
 ## <u>Add_Command</u> function:
 
 ### 🎯 Purpose
+=======
+## Add_Command function:
+>>>>>>> fd99e50fec91867f0518ebc034ba77502ec2d1f8
 
 1. Reads the staging area (index.json).
 
