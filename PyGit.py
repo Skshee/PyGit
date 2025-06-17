@@ -3,6 +3,8 @@ import json
 import hashlib
 import zlib
 import argparse
+import subprocess
+
 
 def read_file(path):
     with open(path, "rb") as f:
@@ -38,10 +40,11 @@ def hash_object(data, obj_type, write=True):
 
     sha1 = hashlib.sha1(full_data).hexdigest()  # Using the imported hashlib library's for sha1 encoding and storing it in hexadecimal
     if write:
-        path = os.path.join('.git', 'objects', sha1[:2], sha1[2:])  # Converts raw SHA-1 to actual filepath (One can also use pathlib library instead of os.path)
-        os.makedirs(os.path.dirname(path), exist_ok=True) # Ensures that the directory exists
-        with open(path, 'wb') as f:
-            f.write(zlib.compress(full_data))   # Stores objects in zlib compressed format
+        dir_path = os.path.join(OBJECTS_DIR, sha1[:2])
+        file_path = os.path.join(dir_path, sha1[2:])
+        os.makedirs(dir_path, exist_ok=True)
+        with open(file_path, 'wb') as f: 
+            f.write(zlib.compress(full_data))
     return sha1
 
 def read_index():
@@ -103,35 +106,43 @@ def write_tree():
     return hash_object(tree_data, "tree")
 
 def commit_command(message):
-    tree_oid = write_tree() # Returns SHA-1 hash of tree object
-
-    # Read HEAD to get current branch ref
+    # Read HEAD to find current branch (should be master)
     with open(HEAD_FILE) as f:
-        ref = os.path.join(GIT_DIR, f.read().strip().split(" ")[-1])  # Gets 'refs/heads/master' - ref is the full path to the branch file
-    
+        ref_line = f.read().strip()
+    assert ref_line.startswith("ref: ")
+    ref_path = os.path.join(GIT_DIR, ref_line[5:])
+
+    # Get parent commit SHA if it exists
     parent = None
-    if os.path.exists(ref):         # Checks if there is an existing commit in the current branch
-        with open(ref) as f:
-            parent = f.read().strip() or None
+    if os.path.exists(ref_path):
+        with open(ref_path) as f:
+            parent = f.read().strip()
+        if parent == "":
+            parent = None
 
-    author = get_author_info()      # Git also stores timestamp but for now I'm skipping it. Just returns name and email
+    # ✅ Get tree SHA by building it from index
+    tree_sha = write_tree()
 
-    commit_lines = []
-    commit_lines.append(f"tree {tree_oid}")
+    # Create commit object
+    lines = []
+    lines.append(f"tree {tree_sha}")
     if parent:
-        commit_lines.append(f"parent {parent}")
-    commit_lines.append(f"author {author}")
-    commit_lines.append("")
-    commit_lines.append(message)
+        lines.append(f"parent {parent}")
+    lines.append("author Suvan <suvan@example.com> 1720000000 +0530")
+    lines.append("committer Suvan <suvan@example.com> 1720000000 +0530")
+    lines.append("")
+    lines.append(message)
 
-    commit_data = "\n".join(commit_lines).encode()   # Joins all commit fields into a single string, encodes it as bytes.
-    commit_oid = hash_object(commit_data, "commit") # Saves commit object in .git/objects/ and gets SHA-1 hash
+    commit_data = "\n".join(lines).encode()
+    commit_sha = hash_object(commit_data, "commit")
 
-    # Update branch ref
-    with open(ref, "w") as f:
-        f.write(commit_oid)     # Updates current branch to point to new commit now
+    # Write to current branch ref
+    os.makedirs(os.path.dirname(ref_path), exist_ok=True)
+    with open(ref_path, "w") as f:
+        f.write(commit_sha)
 
-    print(f"Committed to branch '{ref.split('/')[-1]}' with OID {commit_oid[:7]}: {message}")
+    print(f"[master {commit_sha[:7]}] {message}")
+
 
 def load_index():
     if not os.path.exists(INDEX_FILE):
@@ -141,39 +152,13 @@ def load_index():
     
 def list_files():
     for root, _, files in os.walk("."):
+        # Normalize path separators for cross-platform support
+        full_path = os.path.normpath(root)
+        if os.path.commonpath([GIT_DIR]) in full_path:
+            continue  # Skip any .git subfolders
+
         for file in files:
-            if root.startswith(f"./{GIT_DIR}"):
-                continue  # Skips .git directory
             yield os.path.relpath(os.path.join(root, file), ".")
-
-def status():
-    index = load_index()
-    staged = []
-    modified = []
-    untracked = []
-
-    for path in list_files():
-        data = read_file(path)
-        sha1 = hash_object(data, "blob", write=False)
-
-        if path not in index:
-            untracked.append(path)
-        elif index[path] != sha1:
-            modified.append(path)
-        else:
-            staged.append(path)  # Clean files that are already staged
-
-    print("=== Staged ===")
-    for path in staged:
-        print(path)
-
-    print("\n=== Modified ===")
-    for path in modified:
-        print(path)
-
-    print("\n=== Untracked ===")
-    for path in untracked:
-        print(path)
 
 # Wrapper function to add colour to the files based on their status. Follows ANSI codes
 def colored(text, color_code):
@@ -191,12 +176,12 @@ def status():
 
         if path not in index:
             untracked.append(path)
-        elif index[path] != sha1:
+        elif index[path]["oid"] != sha1:
             modified.append(path)
         else:
             staged.append(path)
 
-    # Headers
+    # Output with color
     print(colored("📋 Staged Files:", "36"))
     for path in staged:
         print(colored(f"  ✅ {path}", "32"))
@@ -208,6 +193,34 @@ def status():
     print(colored("\n📋 Untracked Files:", "36"))
     for path in untracked:
         print(colored(f"  🆕 {path}", "33"))
+
+def push_command(remote_url):
+    try:
+        # Check if this is already a Git repo
+        if not os.path.exists(".git") or not os.path.isdir(".git"):
+            subprocess.run(["git", "init"], check=True)
+            print("🧱 Initialized native Git repo for pushing")
+
+        # Add all current files to native Git index
+        subprocess.run(["git", "add", "."], check=True)
+
+        # Commit with a generic message (could also reuse your commit msg if stored)
+        subprocess.run(["git", "commit", "-m", "Sync PyGit commit"], check=True)
+
+        # Create master branch if not set
+        subprocess.run(["git", "branch", "-M", "master"], check=True)
+
+        # Add remote if not added
+        try:
+            subprocess.run(["git", "remote", "add", "origin", remote_url], check=True)
+        except subprocess.CalledProcessError:
+            pass  # Ignore error if remote already exists
+
+        # Push to GitHub
+        subprocess.run(["git", "push", "-u", "origin", "master"], check=True)
+        print("✅ Push successful via native Git.")
+    except subprocess.CalledProcessError as e:
+        print("❌ Push failed:", e)
 
 
 def main():
@@ -228,6 +241,11 @@ def main():
     #git status
     subparsers.add_parser("status", help="Show file changes")
 
+    # git push
+    sync_parser = subparsers.add_parser("sync-github", help="Sync working directory to GitHub using native Git")
+    sync_parser.add_argument("remote_url", help="Remote repository URL")
+
+
     args = parser.parse_args()
 
     if args.command == "init":
@@ -237,7 +255,9 @@ def main():
     elif args.command == "commit":
         commit_command(args.message)
     elif args.command == "status":
-        status()  # ✅ THIS LINE WAS MISSING
+        status()  
+    elif args.command == "push":
+        push_command(args.remote_url)
     else:
         print("Unknown command.")
 
