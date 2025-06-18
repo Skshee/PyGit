@@ -118,6 +118,8 @@ https://www.geeksforgeeks.org/git/git-internals/
 
 https://www.youtube.com/playlist?list=PL9lx0DXCC4BNUby5H58y6s2TQVLadV8v7
 
+https://www.youtube.com/watch?v=MVWzn5EIdIY
+
 
 
 
